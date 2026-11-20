@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_description">Reads the moves of your games in the Chess.com app and sends them to your website, so visitors can watch live. It only reads what is on screen inside Chess.com, and only sends the moves.</string>
+</resources>

@@ -30,12 +30,23 @@ public class ChessReaderService extends AccessibilityService {
     private static final Pattern SQUARE = Pattern.compile(
             "(White|Black) (King|Queen|Rook|Bishop|Knight|Pawn) on ([a-h][1-8])|\\b([a-h][1-8]),? empty");
     private static final Pattern CLOCK = Pattern.compile("(^|\\s)\\d{1,2}:\\d{2}(\\.\\d)?(\\s|$)");
+    // What Chess.com shows once a game has finished (resigned, abandoned, timed out, mated...). The board and clocks stay
+    // on screen, so without this the game would look live until I left the app. Mid-game buttons like "Offer Draw" or
+    // "Abort" don't match.
+    private static final Pattern OVER = Pattern.compile(
+            "\\b(Rematch|Game Review|Game Over|Aborted|Abandoned|You Won|You Lost)\\b"
+                    + "|\\bby (resignation|abandonment|checkmate|timeout|time|agreement|stalemate|repetition|insufficient material)"
+                    + "|(^|\\s)(1-0|0-1|½-½)(\\s|$)",
+            Pattern.CASE_INSENSITIVE);
+    private static final long GONE_MS = 5_000; // no board for this long (back to Chess.com's home screen): the game's over
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean scanQueued;
     private boolean inChess;
     private String seenOnce; // a position must show on two reads in a row (not mid-animation) before it's sent
     private String sent;
+    private boolean ended; // "done" already sent for the game on screen
+    private long goneSince; // when the board went off screen, 0 while it's showing
 
     /** A position read off the screen: the piece part of a FEN, and the colour at the bottom of the board. */
     static final class Board {
@@ -54,6 +65,8 @@ public class ChessReaderService extends AccessibilityService {
                 inChess = false;
                 if (sent != null) Relay.post(this, "{\"status\":\"done\"}", null);
                 sent = seenOnce = null;
+                ended = false;
+                goneSince = 0;
             }
             return;
         }
@@ -82,11 +95,23 @@ public class ChessReaderService extends AccessibilityService {
         Relay.lastSeen = screen.length() > 4000 ? screen.substring(0, 4000) + "…" : screen;
 
         Board board = read(screen);
-        if (board == null) {
-            Relay.lastFound = "No game board with a clock on this screen.";
+        boolean over = board != null && over(screen);
+        if (board == null || over) {
+            Relay.lastFound = over ? "Game over: " + board : "No game board with a clock on this screen.";
             seenOnce = null;
+            long now = System.currentTimeMillis();
+            if (!over && goneSince == 0) {
+                goneSince = now;
+                if (sent != null && !ended) handler.postDelayed(this::scan, GONE_MS); // look again even if the screen stays still
+            }
+            // The final position stays as `sent`, so it isn't sent again (which would bring the board back for 45 minutes).
+            if (sent != null && !ended && (over || now - goneSince >= GONE_MS)) {
+                ended = true;
+                Relay.post(this, "{\"status\":\"done\"}", null);
+            }
             return;
         }
+        goneSince = 0;
         Relay.lastFound = board.toString();
         String key = board.fen + board.color;
         if (key.equals(sent)) return;
@@ -96,6 +121,7 @@ public class ChessReaderService extends AccessibilityService {
             return;
         }
         sent = key;
+        ended = false;
         Relay.post(this, "{\"board\":\"" + board.fen + "\",\"color\":\"" + board.color + "\"}", null);
     }
 
@@ -106,6 +132,11 @@ public class ChessReaderService extends AccessibilityService {
             if (s != null && s.length() > 0) texts.add(s.toString().trim());
         }
         for (int i = 0; i < node.getChildCount(); i++) collect(node.getChild(i), texts, depth + 1);
+    }
+
+    /** True once the screen shows the game has finished. */
+    static boolean over(String screen) {
+        return OVER.matcher(screen).find();
     }
 
     /** The position, if the screen shows a whole board (all 64 squares) and a game clock; otherwise null. */

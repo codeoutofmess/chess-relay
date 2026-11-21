@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
         });
         col.addView(save);
 
-        Button test = button("Send a test move (shows e4 on the website for 2 minutes)");
+        Button test = button("Send a test move (shows e4 on the website for 10 seconds)");
         test.setOnClickListener(v -> {
             Relay.post(this, "{\"board\":\"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR\",\"color\":\"white\"}", null);
             Relay.post(this, "{\"board\":\"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR\",\"color\":\"white\"}", null);

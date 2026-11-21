@@ -1,7 +1,9 @@
 package nz.pradyumna.chessrelay;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -48,5 +50,15 @@ public class ParseTest {
 
     @Test public void halfABoardIsIgnored() {
         assertNull(ChessReaderService.read(REAL.substring(0, REAL.indexOf("White Pawn on e4"))));
+    }
+
+    @Test public void aGameInProgressIsNotOver() {
+        assertFalse(ChessReaderService.over(REAL + " | Options | Offer Draw | Abort | Resign | Chat"));
+    }
+
+    @Test public void theGameOverScreenIsSeen() {
+        assertTrue(ChessReaderService.over(REAL + " | You Won! | by abandonment | Rematch"));
+        assertTrue(ChessReaderService.over(REAL + " | White won by resignation"));
+        assertTrue(ChessReaderService.over(REAL + " | 30. qf7+ | 0-1 | Game Review"));
     }
 }
